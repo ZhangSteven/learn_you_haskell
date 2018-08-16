@@ -9,9 +9,24 @@ module Shape
 , baseCircle
 , baseRect
 ) where
+import qualified Data.Map as Map
 
 
--- Point: position of a point
+{-
+    use "data" to create a new type.
+
+    Point: position of a point
+
+    NOTE: "Point" on the left hand side defines the type name, while "Point" on
+    the right hand side defines a constructor function used to create the type.
+    These two names happen to be the same just for convenience, they can be
+    different, e.g.,
+
+    data Point = DoPoint Float Float
+
+    In this case, "Point" is the data type name and "DoPoint" is the
+    constructor.
+-}
 data Point = Point Float Float deriving Show
 
 
@@ -124,13 +139,98 @@ data SimplePerson = SimplePerson { firstName :: String
                                  , age :: Int
                                  } deriving (Eq, Show, Read)
 
+
+-- Use the value contructor SimplePerson to create a value of type SimplePerson
+isaac = SimplePerson "Isaac" "Zhang" 6
+
 -- NOTE: when we derive Eq, we need to make sure each member in that record
 -- type belongs to typeclass Eq.
 
 
 {-
-    Haskell can order the values of our own data type if we define the
-    type as Ord.
+    Another example, define a Day data type which can be ordered (Ord), can be
+    enumerated (Enum).
 -}
 data Day = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
             deriving (Eq, Ord, Show, Read, Bounded, Enum)
+
+days = [Monday .. Sunday]   -- Enum
+
+
+{-
+    Type synonyms
+
+    Rather than defining a new type with keyword "data", we can create an alias
+    to an existing data type.
+-}
+
+-- Instead of doing the below:
+-- phoneBook :: [ (String, String) ]
+--
+type PhoneNumber = String
+type Name = String
+type PhoneBook = [ (Name, PhoneNumber) ]
+
+phoneBook :: PhoneBook
+phoneBook = [ ("betty", "555-2938")
+            , ("bonnie", "452-2928")]
+
+
+{-
+    Parameterized type synonyms
+
+    In the above, PhoneBook etc. are concrete types, but sometimes we would
+    like to have parameterized types, like a Map whose key type is Int
+    but value type unknown.
+
+    type IntMap a == Map Int a
+
+    Note "Map Int Int" defines a concrete type, however, partially applying
+    to type "Map" results in parameterized type. Therefore we can also do:
+
+    type IntMap = Map Int
+
+    Unlike define PhoneBook as [ (String, String) ], we can define an
+    associative array as below:
+-}
+type AssocList k v = [ (k, v) ]
+
+ages :: AssocList String Int
+ages = [ ("Issac", 6) ]
+
+
+{-
+    Widely used data type: Either
+
+    It's parameterized type roughly defined as:
+
+    data Either a b =
+        Left a
+        | Right b
+        deriving (Eq, Ord, Read, Show)
+
+    It can be used to represent two different types of values, such as a
+    query result, type a represent the error and type b represents the
+    successful result.
+
+    Here is an example.
+-}
+data LockerState =
+    Taken
+    | Free
+    deriving Eq     -- need this to make the "state == Taken" check below
+
+type Code = String
+type LockerMap = Map.Map Int (LockerState, Code)    -- map locker number to
+                                                    -- locker status and code
+
+
+lockerLookup :: Int -> LockerMap -> Either String Code
+lockerLookup lockerNumber map =
+    case Map.lookup lockerNumber map of
+        Nothing -> Left $ "Locker " ++ show lockerNumber ++ " doesn't exist."
+        Just (state, code) ->
+            if state == Taken then
+                Left $ "Locker " ++ show lockerNumber ++ " is taken."
+            else
+                Right code
