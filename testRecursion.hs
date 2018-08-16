@@ -129,3 +129,23 @@ elem' el list =
 map' :: (a -> b) -> [a] -> [b]
 map' f list =
     foldr (\x acc -> f x : acc) [] list
+
+
+{-
+    Function application and function composition
+
+    function application $
+
+    f x == f $ x
+    f (g (h x)) = f $ g $ h x
+
+    function composition: .
+    Creates new functions on the fly :
+
+    Let F x = f (g x)
+
+    then F = f . g
+-}
+numbers2 = takeWhile (<100) $ map (^2) [1..]
+
+oddSquareSum = sum . takeWhile (<10000) . filter odd . map (^2) $ [1..]
