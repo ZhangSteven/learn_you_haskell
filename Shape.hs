@@ -1,10 +1,34 @@
 {-
     Create our own data types
+
+    From the code below, there are two ways to generate a Shape value,
+    1. Use the constructor, e.g., Circle Point (x, y) r.
+    2. Use the baseCircle and baseRect to create a Shape and then call
+        nudge function to move it to a desired location.
+
+    In approach 1, we need to expose the Shape, Point data type and their
+    constructors, e.g.,
+
+    module Shape
+    ( Point(..)
+    , Shape(..)
+    ...)
+
+    In approach 2, we can just expose the Shape data type without the
+    constructor, e.g.,
+
+    module Shape
+    ( Shape
+    , ...
+    )
+
+    See testShape.hs for the testing code.
 -}
 module Shape
-( Point (..)
-, Shape (..)
-, area
+-- ( Point (..)    -- expose the data type as well as its constructors
+-- , Shape (..)
+-- ( Shape
+( area
 , nudge
 , baseCircle
 , baseRect
@@ -234,3 +258,14 @@ lockerLookup lockerNumber map =
                 Left $ "Locker " ++ show lockerNumber ++ " is taken."
             else
                 Right code
+
+
+lockerMap :: LockerMap
+lockerMap = Map.fromList [ (100, (Taken, "CTYNE"))
+                         , (101, (Free,  "NY74N"))
+                         , (102, (Taken, "C61M6")) ]
+
+-- Try lookup
+result1 = lockerLookup 100 lockerMap
+result2 = lockerLookup 200 lockerMap
+result3 = lockerLookup 101 lockerMap
