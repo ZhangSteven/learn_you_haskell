@@ -248,42 +248,59 @@ yesNoIf value yesResult noResult =
 {-
     The Functor typeclass
 
-    To avoid name clashes, we use Functor2 and fmap2 here to do the
-    illustration.
+    From previous examples, we have defined typeclass for concrete types, now
+    let's look at typeclass for parameterized types. E.g., for [a], Maybe a,
+    etc.
 
-    From the function signature of fmap2, we can see that "f a" and "f b"
-    are concrete types, therefore f must be a type constructor which takes
-    a type variable to create a concrete type. In that case, f can be
-    Maybe, Tree, List2 etc.
+    Since typeclass works like an interface, defining functions so that each
+    instance of the typeclass needs to implement, we can view those functions
+    as polymorphic functions. For example, we can define "==" for a type that
+    is an instance of Eq type class, then when calling == on that type, the
+    function will be called.
+
+    For many parameterized types, like [a] or Maybe a, what if we want to
+    use a function to change the value inside it? Say map Maybe a to Maybe b?
+
+    In this case, Haskell defines a typeclass called Functor, as below∷
+
+    class Functor f where
+        fmap :: (a -> b) -> f a -> f b
+
+    where f is a parameterized type constructor, like [] or Maybe. In Haskell,
+    Maybe is an instance of the Functor typeclass. So that when we call:
+
+    fmap (+1) Just 5        -- Just 6
+    fmap (+1) Nothing       -- Nothing
+
+    Then Haskell will call the fmap defined by Maybe type contructor to handle
+    the above call.
+
+    It turns out that [] is also an instance of the Functor typeclass.
+    When we do :
+
+    fmap (+1) [1, 2, 3]     -- [2, 3, 4]
+    fmap (+1) []            -- []
+
+    Then Haskell will call the fmap defined by [] type constructor to handle
+    the above call. When we look into the source code, it's actually just
+
+    fmap = map      -- in the case of []
 -}
-class Functor2 f where
-    fmap2 :: (a -> b) -> f a -> f b
 
 
 {-
     Try "[]" as the type constructor
 
-    In GHCI,
+    In GHCI, we can define a list of Int as below:
 
-    *Main Map> m = [5]
-    *Main Map> :t m
-    m :: Num t => [t]
-
-    -- Let's specify the type
     *Main Map> m = [5] :: [Int]
     *Main Map> :t m
     m :: [Int]
 
-    -- Let's specify the type in another way: using [] as type constructor
+    -- Or, we can do it this way, using [] as type constructor
     *Main Map> m = [5] :: ([] Int)
     *Main Map> :t m
     m :: [Int]
 
     Let's implement fmap for [a], or [] a.
 -}
-instance Functor2 [] where
-    -- fmap2 :: (a -> b) -> [] a -> [] b    -- this doesn't work
-    fmap2 _ [] = []
-    fmap2 f (x:xs) = f x : fmap2 f xs
-
-    -- fmap2 = map  -- same as above
