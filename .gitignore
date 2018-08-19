@@ -1,0 +1,4 @@
+# binary code not needed
+*.o
+*.exe
+*.hi
