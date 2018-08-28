@@ -5,6 +5,7 @@
 
     What good does this concept do?
 -}
+import Data.Maybe (maybe, fromMaybe)
 
 
 {-
@@ -12,8 +13,33 @@
 
     We have an expression that can yield some value or fail.
 -}
+main :: IO ()
+main =
+    {-
+        To extract value out of Maybe a, we have a few choices∷
+
+        1. fromJust :: Maybe a -> a, but it can throw an exception
+        2. fromMaybe :: a -> Maybe a -> a, take a default value, does
+            not throw exception.
+        3. maybe :: b -> (a -> b) -> Maybe a -> b, apply a transformation
+            (a -> b) to Maybe a when it is not Nothing and return the result,
+            otherewise return the default value.
+
+        Here we choose maybe function because we need to convert our
+        data to String.
+    -}
+    -- works, but maybe is more compact.
+    -- putStrLn $ fromMaybe "Nothing" $ fmap show $ eval expression where
+    putStrLn $ maybe "Nothing" show $ eval expression where
+        -- expression = Add (Val 88) (Div (Val 6) (Val 2)) -- 91
+        -- expression = Add (Val 10) (Div (Val 6) (Val 0)) -- Nothing
+        -- expression = Add (Val 10) (Ln (Val 0)) -- Nothing
+        -- expression = Sub (Add (ValNan) (Val 10)) (Ln (Val 2.72)) -- Nothing
+        expression = Sub (Add (Val 5) (Val 10)) (Ln (Val 2.72)) -- 13.999
+
 
 data Expr = Val Float
+            | ValNan
             | Div Expr Expr
             | Ln Expr
             | Add Expr Expr
@@ -22,8 +48,9 @@ data Expr = Val Float
 
 eval :: Expr -> Maybe Float
 eval (Val v) = Just v
-eval (Add x y) = (+) <$> (eval x) <*> (eval y)
-eval (Sub x y) = (-) <$> (eval x) <*> (eval y)
+eval ValNan = Nothing
+eval (Add x y) = (+) <$> eval x <*> eval y
+eval (Sub x y) = (-) <$> eval x <*> eval y
 
 {-
     If expression x evaluated to Nothing, then result is Nothing.
