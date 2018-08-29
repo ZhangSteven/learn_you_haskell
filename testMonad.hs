@@ -105,14 +105,22 @@ eval (Ln x) =
     The pattern is so common that a do notation is created to represent it:
 
     do
-        x1 <- m x1
-        x2 <- m x2
+        x1 <- expression 1
+        x2 <- expression 2
         ...
-        xn <- m xn
-        f x1 x2 ... xn  -- return value should be m x
+        xn <- expression n
+        f x1 x2 ... xn
 
-    The value of the do block is Nothing if any of x1..xn is Nothing, or the
-    result of the function call.
+    The above is exactly the same as the nested >>= calls below:
+
+    expression 1 >>= \x1 ->
+        expression 2 >>= \x2 ->
+            ...
+                expression n >>= \xn ->
+                    f x1 x2 ... xn
+
+    In the case of Maybe, the value of the do block is Nothing if any of
+    x1..xn is Nothing, otherwise the result of the function call.
 -}
 eval (Div x y) = do
     x' <- eval x
@@ -135,17 +143,31 @@ safeDiv x y
 
 
 {-
-    More on do block (Maybe)
+    More on do block.
 
-    In a do block, you can put values stand alone. If a Nothing appears,
-    then whole expression evaluates to Nothing.
+    In a do block, if you can put values stand alone, like below:
+
+    do
+        x1 <- expression 1
+        y1
+        x2 <- expression 2
+        f x1 x2
+
+    Then it's equivalent to:
+
+    expression 1 >>= \x1 ->
+        y1 >>= \y1' ->
+            expression 2 >>= \x2 ->
+                f x1 x2
+
+    Since y1 is not a parameter in the final call f x1 x2, it's like a
+    fail or succeed swith. See below example:
 -}
 resultDo = do
     x1 <- safeDiv 20 10
     Nothing
-    Just 100
     x2 <- safeLn x1
-    return x2
+    return x2       -- Nothing
 
 
 {-
@@ -153,8 +175,12 @@ resultDo = do
 
     x >> y = x >>= \_ -> y
 
-    For the case of Maybe, if x is a failure (Nothing), then the failure
-    propogates, otherwise take the value y.
+    In the case of Maybe,
+    Nothing >> y = Nothing
+    x >> y       = y
+
+    it means if x is a failure (Nothing), then the failure propogates,
+    otherwise take the value y.
 
     We put return 10 at the beginning of the function call because
     the input we need is of type m a, which is Just a in the case of
@@ -174,8 +200,10 @@ result4 = return 0 >>= safeDiv 20 >> Just 88 >>= safeLn     -- Nothing
 
     fail _ = Nothing
 
-    Then Nothing will be put into the do block, therefore the result will
-    be Nothing.
+    In the below example, when we give an empty string as input, the pattern
+    matching fails, then fail will be called and yields Nothing in the do
+    block. Then return x won't be called at all, since the do block evalutes
+    to Nothing directly.
 -}
 firstChar :: [Char] -> Maybe Char
 firstChar msg = do
