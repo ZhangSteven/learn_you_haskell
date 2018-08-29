@@ -1,18 +1,38 @@
 {-
-    Monad
+    A Fistful of Monads.
 
-    What problem does it solve?
+    We already have Functor and Applicative type class that allows us to
+    do computation in a context:
 
-    What good does this concept do?
+    For a Functor, we have fmap which allows us to apply a plain function
+    on a value in a Functor instance.
+
+    fmap :: (Functor t) => (a -> b) -> t a -> t b
+
+    However, if a function is in a context, say Just (+ 3), then we cannot
+    do fmap. What's more, we cannot apply a function on multiple Functor
+    instances. Applicative comes to the rescue, we can do:
+
+    pure (a -> b -> c) <*> t a <*> t b  -- t is Applicative
+
+    Now we have Monad type class,
+
+    class Monad m where
+        return :: a -> m a  -- same as pure
+        (>>=) :: m a -> (a -> m b) -> m b
+
+        (>>) :: m a -> m b -> m b
+        x >> y = x >>= \_ -> y
+
+        fail :: String -> m a   -- called when things like pattern matching
+        fail msg = error msg    -- failed. See later examples.
+
+    >>=  used to apply function (a -> m b) on m a
+    fmap used to apply function (a -> b  ) on t a
 -}
-import Data.Maybe (maybe, fromMaybe)
+import Data.Maybe (maybe)
 
 
-{-
-    Let's take a simple example.
-
-    We have an expression that can yield some value or fail.
--}
 main :: IO ()
 main =
     {-
@@ -46,6 +66,9 @@ data Expr = Val Float
             | Sub Expr Expr
 
 
+{-
+    Evaluate expression that can fail.
+-}
 eval :: Expr -> Maybe Float
 eval (Val v) = Just v
 eval ValNan = Nothing
@@ -53,57 +76,111 @@ eval (Add x y) = (+) <$> eval x <*> eval y
 eval (Sub x y) = (-) <$> eval x <*> eval y
 
 {-
-    If expression x evaluated to Nothing, then result is Nothing.
-    Othrewise expression evaluated to Just value, then apply value to function
-    safeLn (Maybe Float).
+    eval x :: Maybe Float
+    safeLn :: Float -> Maybe Float
+
+    Therefore, to evaluate (Ln x), we need the >>= function,
 
     (>>=) :: Maybe a -> (a -> Maybe b) -> Maybe b
-    mx >>= f =
-        case mx of
-            Nothing -> Nothing
-            Just x  -> f x
 -}
 eval (Ln x) =
     eval x >>= safeLn
 
 {-
-    What if there are more than one undetermined input and we need:
+    eval x :: Maybe Float
+    eval y :: Maybe Float
+    safeDiv :: Float -> Float -> Maybe Float
 
-    Maybe a -> Maybe b -> (a -> b -> Maybe c) -> Maybe c ?
+    In this case, we need nested >>= calls.
 
-    It can be done with nested >>= operators, or better, use the do notation,
-    which is a short hand of the nested >>= operators.
--}
-eval (Div x y) =
+    eval x >>= \x' ->
+        eval y >>= \y' ->
+            safeDiv x' y'
+
+    Or better formatted as:
+    eval x >>= \x' ->
+    eval y >>= \y' ->
+    safeDiv x' y'
+
+    The pattern is so common that a do notation is created to represent it:
+
     do
-        x' <- eval x
-        y' <- eval y
-        safeDiv x' y'
+        x1 <- m x1
+        x2 <- m x2
+        ...
+        xn <- m xn
+        f x1 x2 ... xn  -- return value should be m x
 
-    -- same as below
-    -- eval x >>= \x' ->
-    --     eval y >>= \y' ->
-    --         safeDiv x' y'
-
-    -- The above can be better formatted as
-    -- eval x >>= \x' ->
-    -- eval y >>= \y' ->
-    -- safeDiv x' y'
+    The value of the do block is Nothing if any of x1..xn is Nothing, or the
+    result of the function call.
+-}
+eval (Div x y) = do
+    x' <- eval x
+    y' <- eval y
+    safeDiv x' y'
 
 
 -- Since log can throw exception, use Maybe Float to represent result
 safeLn :: Float -> Maybe Float
-safeLn x =
-    if x > 0 then
-        Just (log x)
-    else
-        Nothing
+safeLn x
+    | x > 0 = Just (log x)
+    | otherwise = Nothing
 
 
 -- Since divided by zero is not acceptable, use Maybe Float to represent.
 safeDiv :: Float -> Float -> Maybe Float
-safeDiv x y =
-    if y == 0 then
-        Nothing
-    else
-        Just (x / y)
+safeDiv x y
+    | y == 0 = Nothing
+    | otherwise = Just (x / y)
+
+
+{-
+    More on do block (Maybe)
+
+    In a do block, you can put values stand alone. If a Nothing appears,
+    then whole expression evaluates to Nothing.
+-}
+resultDo = do
+    x1 <- safeDiv 20 10
+    Nothing
+    Just 100
+    x2 <- safeLn x1
+    return x2
+
+
+{-
+    The >> function
+
+    x >> y = x >>= \_ -> y
+
+    For the case of Maybe, if x is a failure (Nothing), then the failure
+    propogates, otherwise take the value y.
+
+    We put return 10 at the beginning of the function call because
+    the input we need is of type m a, which is Just a in the case of
+    Maybe.
+-}
+result1 = return 10 >>= safeDiv 20 >>= safeLn               -- log 2
+result2 = return 10 >>= safeDiv 20 >> Just 88 >>= safeLn    -- log 88
+result3 = return 10 >>= safeDiv 20 >> Nothing >>= safeLn    -- Nothing
+result4 = return 0 >>= safeDiv 20 >> Just 88 >>= safeLn     -- Nothing
+
+
+{-
+    The fail function.
+
+    Monads have a fail function. When pattern matching fails in the below
+    function, fail gets called. For Maybe, it's implemented as:
+
+    fail _ = Nothing
+
+    Then Nothing will be put into the do block, therefore the result will
+    be Nothing.
+-}
+firstChar :: [Char] -> Maybe Char
+firstChar msg = do
+    (x : _) <- Just msg
+    return x
+
+result5 = firstChar "Hello" -- Just 'H'
+result6 = firstChar ""      -- Nothing

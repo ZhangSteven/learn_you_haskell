@@ -23,7 +23,7 @@
     We can see that Monoid class instances are concrete types, unlike
     Functor instances are parameterized types. Each Monoid instance has
     its own mempty constant and mappend binary operator. For example,
-    [a] is a Monoid instance defined as follows:
+    a list structure [a] is a Monoid instance defined as follows:
 
     instance Monoid [a] where
         mempty = []
@@ -32,6 +32,9 @@
     let's try it out:
 -}
 import Data.Monoid
+import Control.Applicative (liftA2)
+import Data.Maybe (fromMaybe)
+import qualified Data.Foldable as F
 
 
 -- for list, concat [a] == mconcat [a]
@@ -58,7 +61,7 @@ result2 = mempty :: [a]                         -- []
     newtype Sum a = Sum { getSum :: a }
 
     instance (Num a) => Monoid (Sum a) where
-        mempty = Sum 1
+        mempty = Sum 0
         Sum x `mappend` Sum y = Sum (x + y)
 
     Let's try:
@@ -68,6 +71,55 @@ result4 = mempty :: (Num t) => Sum t        -- Sum 0
 
 result5 = getProduct . mconcat . map Product $ [2, 3, 4]    -- 24 (2 * 3 * 4)
 result6 = getSum .mconcat . map Sum $ [2, 3, 4]             -- 9 (2 + 3 + 4)
+
+
+{-
+    How to sum a list of Maybes : [Maybe a]
+
+    There are two ways to define the sum:
+
+    1. Treat Nothing as failure, i.e., if Nothing appears in the list, then
+        the sum result is Nothing.
+
+        sumMaybe :: (Num a) => [Maybe a] -> Maybe a
+
+        sumMaybe [Just 1, Just 2] -> Just 3
+        sumMaybe []               -> Just 0
+        sumMaybe [Nothing]        -> Nothing
+
+    2. Ignore Nothing, i.e., only sum up those successful values.
+
+        sumMaybe2 :: (Num a) => [Maybe a] -> a
+
+        sumMaybe2 [Just 1, Just 2, Nothing] -> 3
+        sumMaybe2 []                        -> 0
+        sumMaybe2 [Nothing]                 -> 0
+-}
+
+sumMaybe :: (Num a) => [Maybe a] -> Maybe a
+sumMaybe =
+    foldl (liftA2 (+)) (Just 0)
+
+-- Or, use sequence [Maybe a] -> Maybe [a]
+sumMaybe' :: (Num a) => [Maybe a] -> Maybe a
+sumMaybe' list =
+    sum <$> sequence list
+
+-- this version treats Nothing as 0.
+sumMaybe2 :: (Num a) => [Maybe a] -> a
+sumMaybe2 =
+    -- Use Monoid type Sum, this works
+    -- getSum . mconcat . map (maybe mempty Sum)
+    --
+    -- But there is a simpler form
+    sum . map (fromMaybe 0)
+
+
+list1 = [Just 1, Just 2]
+list2 = []
+list3 = [Just 1, Nothing]
+resultSum = [sumMaybe, sumMaybe'] <*> [list1, list2, list3] -- [Just 3,Just 0,N]
+resultSum2 = map sumMaybe2 [list1, list2, list3]    -- [3, 0, 1]
 
 
 {-
@@ -196,3 +248,77 @@ result14 = getLast $ Last (Just 'a') `mappend` Last Nothing
 
 -- Get the last non-Nothing value (Just 20)
 result15 = getLast $ mconcat $ map Last [Nothing, Just 10, Just 20, Nothing]
+
+
+{-
+    Monoids to help define a Foldable structure. A Foldable structure t a
+    does not have to contain Monoid types. But if they do, we can use the
+    following function to make our data type a Foldable type.
+
+    foldMap :: (Monoid m, Foldable t) => (a -> m) -> t a -> m
+
+    It takes a function mapping type a to type m (Monoid), a Foldable
+    structure whose value type is a, then reduce everything to a single
+    value of type m.
+
+    Let's take the example of a Tree, how to make it a Foldable instance.
+-}
+data Tree a = Empty | Node a (Tree a) (Tree a)
+instance F.Foldable Tree where
+    foldMap f Empty = mempty
+    foldMap f (Node x leftTree rightTree) =
+        foldMap f leftTree `mappend`
+        f x                `mappend`
+        foldMap f rightTree
+
+
+tree :: Tree Int
+tree = Node 5
+        (
+            Node 3
+                (Node 2 Empty Empty)
+                (Node 4 Empty Empty)
+        )
+        (
+            Node 7
+                (Node 6 Empty Empty)
+                (Node 8 Empty Empty)
+        )
+
+{-
+    Try it out.
+
+    Here the function Sum/Product determines the mempty and mappend used
+    in foldMap.
+-}
+resultTree1 = getSum $ foldMap Sum tree             -- 35
+resultTree2 = getProduct $ foldMap Product tree     -- 40320
+
+-- Since it's a Foldable structure now, we can call F.foldl foldr now.
+-- QUESTION: how is F.foldl and foldr related to foldMap?
+resultTree3 = F.foldl (+) 0 tree    -- 35
+resultTree4 = F.foldl (*) 1 tree    -- 40320
+resultTree5 = F.foldl (-) 10 tree   -- (-25), or 10 - sum (tree)
+
+
+{-
+    With the foldMap on Tree defined, we can do some more interesting
+    things.
+
+    Check whether any element is equal to 3. Here we use another Monoid
+    type Any, like Sum, it has the following definition:
+
+    newtype Any = Any { getAny :: Bool }
+
+    instance Monoid Any where
+        mempty = Any False
+        Any x `mappend` Any y = Any (x || y)
+
+    All is like Any, except that All has mempty = True and mappend =
+    All (x && y).
+-}
+resultTree6 = getAny $ foldMap (\x -> Any $ x == 3) tree    -- True
+resultTree7 = getAll $ foldMap (\x -> All $ x > 3) tree     -- False
+
+-- Let's try the list Monoid, convert the tree to list
+resultTreeList = foldMap (\x -> [x]) tree       -- [2, 3, 4, 5, 6, 7, 8]
